@@ -12,3 +12,22 @@ primer modelo  que hice fue lo siguiente:
 - Para, imprime al terminal STOP y sale del programa.
 
 ![Primera prueba gif](../images/primera_prueba.gif)
+
+El código es:
+```python
+from GUI import GUI
+from HAL import HAL
+
+# Enter sequential code!
+
+while True:
+    # Enter iterative code!
+
+    print(HAL.getLaserData().values[90])
+    if HAL.getLaserData().values[90] > 1 :
+        HAL.setV(3)
+    else :
+      print("STOP")
+      HAL.setV(0)
+      exit(10)
+```
