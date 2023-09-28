@@ -160,7 +160,7 @@ In this model I added some randomness with the selection of the next state when 
 being the chances to go Forward 20% and 80% to go to Spiral.
 
 Here is some footage of this model working:
-https://github.com/javizqh/blog/images/video.webm
+https://github.com/javizqh/blog/tree/master/images/video.webm
 
 And here is the highest score I obtained using it (Your score may vary because of the added randomness):
 ![High Score](../images/HighScore.png)
