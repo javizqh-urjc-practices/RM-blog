@@ -3,13 +3,12 @@ layout: post
 title: Practica 1 - Basic Vacuum Cleaner
 ---
 
-# Primer contacto
+# Firsts attempts
 
-Al ser la primera vez escribiendo codigo en python para controlar un robot usando ros, y al no conocer el API, el
-primer modelo  que hice fue lo siguiente:
+Because this was my first time writting code to controle a robot using this API, I decided to start with a very simple approach:
 
-- Va recto hasta que se encuentra un objeto a 1 metro.
-- Para, imprime al terminal STOP y sale del programa.
+- It goes forward until it detects an object less than 1 meter in front.
+- Then it stops printing STOP to the terminal and it ends.
 
 ![Primera prueba gif](../images/primera_prueba.gif)
 
@@ -31,11 +30,11 @@ while True:
       exit(10)
 ```
 
-# Implementado maquinas de estado
+# Creating a Finite State Machine
 
-Para este segundo modelo he creado una máquina de estados sencilla con dos estados: hacia delante y giro.
+For this second model I decided to create a simple FSM with only 2 states: forward and turn.
 
-Por defecto empieza hacia delante y cuando encuentra un objeto delante a menos de 0.5 metros gira durante 3 segundos para luego volver a ir recto.
+By default it starts going forward until it detects an obstacle less than 0.5 meters in front and then turns for 3 seconds.
 
 ![Segunda prueba](../images/segunda_prueba.gif)
 
@@ -73,11 +72,11 @@ while True:
 
 ```
 
-# Implementando aleatoriedad y espirales
+# Using randomness and spirals
 
-En este modelo he aumentado la complejidad de la máquina de estados con un estado más, el del movimiento en espiral.
+In this model I decided to use a more complex finite state machine (FSM), with the addition of one more state, the spiral.
 
-También en esta iteración he añadido aleatoriedad al sentido de los giros usando random
+Also, I added in this model some randomness when choosing wich direction to rotate.
 
 ![Tercer modelo](../images/tercera_prueba.gif)
 
@@ -146,4 +145,157 @@ while True:
           current_state = FORWARD
         elif is_object_near(HAL.getLaserData()):
             go_to_turn()
+```
+
+# Final Model
+
+In this final model I used a 4 states FSM, being each one:
+
+- Forward: go forward until it detects and object.
+- Turn: rotates until it does not detect and object or if 5s passed then goes to stuck state
+- Spiral: do a spiral until it detects and object or finishes in 10 seconds
+- Stuck: go backward 1 second and then go to turn
+
+In this model I added some randomness with the selection of the next state when it finishes Turn succesfully,
+being the chances to go Forward 20% and 80% to go to Spiral.
+
+Here is some footage of this model working:
+https://github.com/javizqh/blog/images/video.webm
+
+And here is the highest score I obtained using it (Your score may vary because of the added randomness):
+![High Score](../images/HighScore.png)
+
+I also noticed some issues with the chairs in the simulation, causing the vacuum to get stuck forever between them.
+
+```python
+from GUI import GUI
+from HAL import HAL
+import datetime
+import random
+
+# States
+FORWARD = 0
+TURN = 1
+SPIRAL = 2
+STUCK = 3
+
+# Object postions
+RIGHT = -1
+LEFT = 1
+
+object_found_position = RIGHT
+
+base_linear_speed = 3
+base_angular_speed = 3
+
+start_turn = datetime.datetime.now()
+
+start_spiral = datetime.datetime.now()
+spiral_ang_speed_base = 2
+spiral_ang_speed = spiral_ang_speed_base
+spiral_ang_speed_increment = 0.02
+
+start_stuck = datetime.datetime.now()
+
+current_state = FORWARD
+
+def is_object_near(laser_data):
+    # Checks if an object is detected near using the laser values
+    global object_found_position, RIGHT, LEFT
+    closest_angle = 0
+    closest_distance = 10
+    # Iterate in all range around
+    for i in range(180):
+        if i < 75:
+            if laser_data.values[i] < 0.25:
+                object_found_position = LEFT
+                if laser_data.values[i] < closest_distance:
+                    closest_distance = laser_data.values[i]
+                    closest_angle = i
+        elif i < 90:
+            if laser_data.values[i] < 0.5:
+                object_found_position = LEFT
+                if laser_data.values[i] < closest_distance:
+                    closest_distance = laser_data.values[i]
+                    closest_angle = i
+        elif i < 105:
+            if laser_data.values[i] < 0.5:
+                object_found_position = RIGHT
+                if laser_data.values[i] < closest_distance:
+                    closest_distance = laser_data.values[i]
+                    closest_angle = i
+        else:
+            if laser_data.values[i] < 0.25:
+                object_found_position = RIGHT
+                if laser_data.values[i] < closest_distance:
+                    closest_distance = laser_data.values[i]
+                    closest_angle = i
+    if closest_angle == 0:
+        return False
+    else:
+        return True
+
+def has_time_finished(start, now, delay):
+    # Tells if the delay has passed
+    after_delay = start + datetime.timedelta(seconds = delay)
+    return now > after_delay
+
+# Functions to change state
+def go_to_forward():
+    global current_state, FORWARD
+    current_state = FORWARD
+    HAL.setW(0)
+
+def go_to_turn():
+    global current_state, TURN, start_turn
+    current_state = TURN
+    HAL.setW(base_angular_speed * object_found_position)
+    start_turn = datetime.datetime.now()
+    HAL.setV(0)
+    
+def go_to_spiral():
+    global current_state, SPIRAL, spiral_ang_speed, spiral_ang_speed_base, \
+        start_spiral
+    current_state = SPIRAL
+    spiral_ang_speed = spiral_ang_speed_base
+    start_spiral = datetime.datetime.now()
+    
+def go_to_stuck():
+    global current_state, STUCK, start_stuck
+    current_state = STUCK
+    start_stuck = datetime.datetime.now()
+    HAL.setW(0)
+# --------------------------
+
+# Initial state
+go_to_forward()
+
+# Start loop
+while True:
+    if current_state == FORWARD:
+        HAL.setV(base_linear_speed)
+        if is_object_near(HAL.getLaserData()):
+            go_to_turn()
+    elif current_state == TURN:
+        if has_time_finished(start_turn, datetime.datetime.now(), 1):
+            if not is_object_near(HAL.getLaserData()):
+                if random.randint(1, 10) <= 2:
+                    go_to_forward()
+                else:
+                    go_to_spiral()
+        elif has_time_finished(start_turn, datetime.datetime.now(), 5):
+            go_to_stuck()
+          
+    elif current_state == SPIRAL:
+        spiral_ang_speed = spiral_ang_speed + spiral_ang_speed_increment
+        HAL.setV(base_linear_speed)
+        HAL.setW(spiral_ang_speed * -object_found_position)
+        if has_time_finished(start_turn, datetime.datetime.now(), 10):
+            go_to_forward()
+        elif is_object_near(HAL.getLaserData()):
+                go_to_turn()
+    elif current_state == STUCK:
+        HAL.setV(-base_linear_speed/2)
+        if has_time_finished(start_stuck, datetime.datetime.now(), 1):
+          go_to_turn()
 ```
